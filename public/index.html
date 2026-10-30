@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="tr" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QuizOyun</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800;900&family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-main: #131f24;
+      --bg-card: #1b2b32;
+      --border-subtle: #2c424d;
+    }
+
+    body {
+      font-family: 'Nunito', 'Cairo', sans-serif;
+      background-color: var(--bg-main);
+      color: #f1f5f9;
+      min-height: 100vh;
+      user-select: none;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+
+    /* Fiziksel Oyun Butonu Hissi (3D Lip) */
+    .btn-3d {
+      transition: transform 0.08s ease, border-bottom-width 0.08s ease, background-color 0.15s ease;
+    }
+    .btn-3d:active:not(:disabled) {
+      transform: translateY(3px);
+    }
+
+    .btn-green {
+      background-color: #58cc02;
+      border-bottom: 4px solid #46a302;
+      color: #ffffff;
+    }
+    .btn-green:hover:not(:disabled) { background-color: #61e002; }
+    .btn-green:active:not(:disabled) { border-bottom-width: 1px; }
+
+    .btn-blue {
+      background-color: #1cb0f6;
+      border-bottom: 4px solid #1899d6;
+      color: #ffffff;
+    }
+    .btn-blue:hover:not(:disabled) { background-color: #2bc0ff; }
+    .btn-blue:active:not(:disabled) { border-bottom-width: 1px; }
+
+    .btn-red {
+      background-color: #ff4b4b;
+      border-bottom: 4px solid #cf2323;
+      color: #ffffff;
+    }
+    .btn-red:hover:not(:disabled) { background-color: #ff5c5c; }
+    .btn-red:active:not(:disabled) { border-bottom-width: 1px; }
+
+    .btn-neutral {
+      background-color: #20333b;
+      border: 2px solid #334e5a;
+      border-bottom: 4px solid #334e5a;
+      color: #e2e8f0;
+    }
+    .btn-neutral:hover:not(:disabled) {
+      background-color: #273e47;
+      border-color: #466878;
+      border-bottom-color: #466878;
+    }
+    .btn-neutral:active:not(:disabled) { border-bottom-width: 2px; }
+
+    /* Seviye Düğümü (Patika Daireleri) */
+    .stage-node {
+      width: 82px;
+      height: 76px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 1.5rem;
+      position: relative;
+      transition: transform 0.12s ease;
+    }
+    .stage-node:active:not(:disabled) {
+      transform: translateY(4px);
+    }
+    .stage-node-unlocked {
+      background-color: #58cc02;
+      border-bottom: 7px solid #46a302;
+      color: #fff;
+      cursor: pointer;
+    }
+    .stage-node-current {
+      background-color: #1cb0f6;
+      border-bottom: 7px solid #1899d6;
+      color: #fff;
+      cursor: pointer;
+    }
+    .stage-node-locked {
+      background-color: #23363f;
+      border-bottom: 7px solid #18262c;
+      color: #52707e;
+      cursor: not-allowed;
+    }
+
+    @keyframes floatBounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    .bounce-badge {
+      animation: floatBounce 1.6s infinite ease-in-out;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
+    }
+    .animate-shake {
+      animation: shake 0.35s ease-in-out;
+    }
+
+    /* Native Dialog Scroll Containment & Top-Layer Animations (modern-web-guidance: dialog, animate-to-from-top-layer) */
+    dialog:modal {
+      overscroll-behavior: contain;
+    }
+
+    dialog::backdrop {
+      overflow: hidden;
+      overscroll-behavior: contain;
+      background-color: rgba(10, 18, 22, 0);
+      transition-property: background-color, display, overlay;
+      transition-duration: 0.25s;
+      transition-timing-function: ease-out;
+      transition-behavior: allow-discrete;
+    }
+
+    dialog {
+      opacity: 0;
+      transform: scale(0.95);
+      transition-property: opacity, transform, display, overlay;
+      transition-duration: 0.25s;
+      transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+      transition-behavior: allow-discrete;
+    }
+
+    /* YANDAN AÇILIR AYARLAR PANELİ (SIDE DRAWER) */
+    dialog.side-drawer {
+      position: fixed;
+      inset-block: 0;
+      margin-block: 0;
+      margin-inline-start: auto;
+      margin-inline-end: 0;
+      height: 100dvh;
+      max-height: 100dvh;
+      width: min(92vw, 25rem);
+      border-radius: 1.5rem 0 0 1.5rem;
+      border-right-width: 0;
+      opacity: 0;
+      transform: translateX(100%);
+    }
+
+    html[dir="rtl"] dialog.side-drawer {
+      border-radius: 0 1.5rem 1.5rem 0;
+      border-right-width: 2px;
+      border-left-width: 0;
+      transform: translateX(-100%);
+    }
+
+    :is(dialog[open]):where(:not([data-closing])) {
+      opacity: 1;
+      transform: scale(1);
+
+      @starting-style {
+        opacity: 0;
+        transform: scale(0.95);
+      }
+
+      &::backdrop {
+        background-color: rgba(10, 18, 22, 0.82);
+
+        @starting-style {
+          background-color: rgba(10, 18, 22, 0);
+        }
+      }
+    }
+
+    :is(dialog.side-drawer[open]):where(:not([data-closing])) {
+      opacity: 1;
+      transform: translateX(0);
+
+      @starting-style {
+        opacity: 0;
+        transform: translateX(100%);
+      }
+    }
+
+    html[dir="rtl"] :is(dialog.side-drawer[open]):where(:not([data-closing])) {
+      opacity: 1;
+      transform: translateX(0);
+
+      @starting-style {
+        opacity: 0;
+        transform: translateX(-100%);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      dialog,
+      dialog.side-drawer,
+      html[dir="rtl"] dialog.side-drawer {
+        transform: none;
+        transition-duration: 0.1s;
+      }
+
+      @starting-style {
+        :is(dialog[open], dialog.side-drawer[open]):where(:not([data-closing])) {
+          transform: none;
+        }
+      }
+    }
+  </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+  <!-- ÜST BAR (SADE OYUN BARI) -->
+  <header id="mainHeader" class="border-b-2 border-[#23363f] bg-[#131f24] sticky top-0 z-20">
+    <div class="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between gap-2">
+      <!-- Sol: Oyun Adı -->
+      <button onclick="app.showScreen('dashboard')" class="text-xl font-black tracking-tight text-[#58cc02] hover:opacity-90 flex items-center gap-2 shrink-0">
+        <span>🎯</span>
+        <span data-i18n="appBrand">QUIZOYUN</span>
+      </button>
+
+      <!-- Orta: Oyun İçi Değerler (Skor & Aktif Harita Hata Havuzu) -->
+      <div class="flex items-center gap-2.5 sm:gap-4">
+        <div class="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#242214] border-2 border-[#5c4f1c] font-extrabold text-[#ffc800] text-sm whitespace-nowrap" dir="ltr">
+          <span>⚡</span>
+          <span id="navTotalScore">0 / 100</span>
+        </div>
+
+        <button onclick="app.startMistakeMode()" id="navMistakeBtn" class="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[#2a1c21] border-2 border-[#5c2831] hover:border-[#ff4b4b] font-extrabold text-[#ff4b4b] text-sm transition">
+          <span>💀</span>
+          <span id="navMistakeCount">0</span>
+          <span data-i18n="navMistakes" class="hidden sm:inline text-xs uppercase tracking-wide">Hata</span>
+        </button>
+      </div>
+
+      <!-- Sağ: Yeni Harita / Soru Yükle & Yandan Açılır Ayarlar -->
+      <div class="flex items-center gap-2 shrink-0">
+        <button onclick="app.openImportModal()" class="btn-3d btn-blue px-3.5 py-1.5 rounded-xl font-extrabold text-xs sm:text-sm uppercase tracking-wider">
+          <span data-i18n="btnNewMap">+ Yeni Harita / Soru At</span>
+        </button>
+        <button onclick="app.openSettingsModal()" class="btn-3d btn-neutral px-3 py-1.5 rounded-xl font-extrabold text-sm" aria-label="Settings">
+          ⚙️
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- EKRAN 1: OYUN HARİTASI (PATİKA) -->
+  <main class="flex-1 flex flex-col">
+    <section id="screenDashboard" class="max-w-xl w-full mx-auto px-4 py-6 space-y-6">
+
+      <!-- Üst Aktif Harita Tabelası (Ana ekranda sadece açık olan harita görünür) -->
+      <div class="bg-[#1b2b32] border-2 border-[#2c424d] rounded-2xl p-4 flex items-center justify-between gap-4">
+        <div class="min-w-0">
+          <div id="activeQuizBadge" class="text-xs font-extrabold uppercase tracking-wider text-[#1cb0f6]">
+            17 SORU • 2 BÖLÜM
+          </div>
+          <h2 id="activeQuizTitle" class="text-lg sm:text-xl font-black text-white mt-0.5 truncate">
+            Ders Çalışma Testi
+          </h2>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <button onclick="app.restartActiveMap()" class="btn-3d btn-neutral px-3 py-2 rounded-xl text-xs font-extrabold text-[#ffc800]">
+            <span>🔄</span> <span data-i18n="btnResetMap">Sıfırla</span>
+          </button>
+          <button onclick="app.openPreviewModal()" class="btn-3d btn-neutral px-3 py-2 rounded-xl text-xs font-extrabold">
+            <span>📋</span> <span data-i18n="btnQuestions">Sorular</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Hata Havuzu Uyarısı (Varsa) -->
+      <div id="mistakeBanner" class="hidden bg-[#2b191d] border-2 border-[#ff4b4b] rounded-2xl p-4 flex items-center justify-between gap-4">
+        <div>
+          <div data-i18n="revengeReadyTitle" class="font-black text-[#ff4b4b] text-sm uppercase">💀 İntikam Modu Hazır</div>
+          <p id="mistakeBannerDesc" class="text-xs font-bold text-slate-300 mt-0.5">
+            Bu haritada yanlış yaptığın <span id="bannerMistakeCount" class="text-white underline">0</span> soru seni bekliyor.
+          </p>
+        </div>
+        <button onclick="app.startMistakeMode()" class="btn-3d btn-red px-4 py-2 rounded-xl font-black text-xs uppercase tracking-wider shrink-0">
+          <span data-i18n="btnCleanMistakes">Temizle</span>
+        </button>
+      </div>
+
+      <!-- DİKEY OYUN PATİKASI (STAGE ROAD) -->
+      <div id="stageGrid" class="flex flex-col items-center space-y-8 py-4">
+        <!-- JS ile patika düğümleri buraya çizilir -->
+      </div>
+
+    </section>
+
+    <!-- EKRAN 2: OYUN / SORU ÇÖZME EKRANI -->
+    <section id="screenGame" class="hidden flex-1 flex flex-col justify-between max-w-2xl w-full mx-auto px-4 pt-6 pb-4">
+      <div class="space-y-4">
+        <div class="flex items-center gap-4">
+          <button onclick="app.quitStage()" class="text-slate-400 hover:text-white font-black text-2xl leading-none px-1">
+            ✕
+          </button>
+
+          <div class="flex-1 h-4 bg-[#23363f] rounded-full overflow-hidden p-0.5">
+            <div id="gameProgressBar" class="h-full bg-[#58cc02] rounded-full transition-all duration-300" style="width: 10%"></div>
+          </div>
+
+          <div id="gameLivesContainer" class="flex items-center gap-1 text-lg font-black text-[#ff4b4b]" dir="ltr"></div>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <div class="flex items-center gap-2">
+            <span id="gameQuestionCounter" class="text-xs font-extrabold uppercase tracking-wider text-slate-400">SORU 1 / 10</span>
+            <span id="comboBadge" class="hidden px-2.5 py-0.5 rounded-lg bg-[#ffc800] text-[#131f24] font-black text-xs uppercase">
+              🔥 2 SERİ
+            </span>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button id="joker50Btn" onclick="app.useJoker50()" class="btn-3d btn-neutral px-2.5 py-1 rounded-xl text-xs font-extrabold disabled:opacity-35" dir="ltr">
+              ✂️ %50
+            </button>
+            <button id="jokerHintBtn" onclick="app.useJokerHint()" class="btn-3d btn-neutral px-2.5 py-1 rounded-xl text-xs font-extrabold disabled:opacity-35">
+              <span>💡</span> <span data-i18n="jokerHint">İpucu</span>
+            </button>
+            <button id="jokerHealBtn" onclick="app.useJokerHeal()" class="btn-3d btn-neutral px-2.5 py-1 rounded-xl text-xs font-extrabold disabled:opacity-35">
+              <span>❤️</span> <span data-i18n="jokerHeal">+1 Can</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="hintBox" class="hidden bg-[#2b2614] border-2 border-[#ffc800] rounded-2xl p-3.5 text-sm font-bold text-[#ffe580]">
+          💡 <span id="hintText"></span>
+        </div>
+      </div>
+
+      <!-- ORTA: SORU VE ŞIKLAR -->
+      <div id="questionCard" class="my-auto py-6 space-y-6">
+        <h2 id="questionText" class="text-xl sm:text-2xl font-extrabold text-white leading-snug">
+          Soru metni...
+        </h2>
+
+        <div id="optionsContainer" class="space-y-3"></div>
+      </div>
+
+      <!-- ALT: CEVAP SONRASI ÇIKAN OYUN BANNERI -->
+      <div id="feedbackPanel" class="hidden rounded-2xl p-5 border-2 space-y-3">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div class="space-y-1">
+            <div id="feedbackTitle" class="text-lg font-black"></div>
+            <p id="feedbackExplanation" class="text-sm font-bold text-slate-200 leading-relaxed"></p>
+          </div>
+          <button id="nextQuestionBtn" onclick="app.nextQuestion()" class="btn-3d btn-green px-7 py-3 rounded-2xl font-black text-sm uppercase tracking-wider shrink-0">
+            <span data-i18n="btnContinue">DEVAM ET</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- EKRAN 3: BÖLÜM SONU EKRANI -->
+    <section id="screenResult" class="hidden max-w-md w-full mx-auto px-4 my-auto py-10 text-center space-y-6">
+      <div id="resultStars" class="flex items-center justify-center gap-3 text-5xl" dir="ltr"></div>
+
+      <div class="space-y-1">
+        <h2 id="resultTitle" class="text-3xl font-black text-white">Bölüm Geçildi!</h2>
+        <p id="resultSubtitle" class="text-sm font-bold text-slate-400"></p>
+      </div>
+
+      <div class="grid grid-cols-3 gap-3">
+        <div class="bg-[#1b2b32] border-2 border-[#ffc800] rounded-2xl p-3">
+          <div data-i18n="lblMapScore" class="text-[11px] font-black uppercase text-[#ffc800]">HARİTA PUANI</div>
+          <div id="resultScore" class="text-xl font-black text-white mt-1" dir="ltr">0 / 100</div>
+        </div>
+        <div class="bg-[#1b2b32] border-2 border-[#58cc02] rounded-2xl p-3">
+          <div data-i18n="lblAccuracy" class="text-[11px] font-black uppercase text-[#58cc02]">BÖLÜM İSABETİ</div>
+          <div id="resultAccuracy" class="text-xl font-black text-white mt-1" dir="ltr">%100</div>
+        </div>
+        <div class="bg-[#1b2b32] border-2 border-[#ff4b4b] rounded-2xl p-3">
+          <div data-i18n="lblRemainingLives" class="text-[11px] font-black uppercase text-[#ff4b4b]">KALAN CAN</div>
+          <div id="resultRemainingLives" class="text-xl font-black text-white mt-1" dir="ltr">3</div>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-3 pt-2">
+        <button id="resultNextStageBtn" onclick="app.playNextStage()" class="hidden btn-3d btn-green w-full py-3.5 rounded-2xl font-black text-sm uppercase tracking-wider">
+          <span data-i18n="btnNextStage">SONRAKİ BÖLÜM →</span>
+        </button>
+        <button id="resultRestartMapBtn" onclick="app.restartActiveMap(true)" class="hidden btn-3d btn-green w-full py-3.5 rounded-2xl font-black text-sm uppercase tracking-wider">
+          <span data-i18n="btnRestartFullMap">🔄 HARİTAYI BAŞTAN BAŞLAT (PUANI SIFIRLA)</span>
+        </button>
+        <button id="resultRetryBtn" onclick="app.retryCurrentStage()" class="btn-3d btn-blue w-full py-3.5 rounded-2xl font-black text-sm uppercase tracking-wider">
+          <span data-i18n="btnRetryStage">BU BÖLÜMÜ TEKRAR OYNA</span>
+        </button>
+        <button onclick="app.showScreen('dashboard')" class="btn-3d btn-neutral w-full py-3 rounded-2xl font-black text-sm uppercase tracking-wider">
+          <span data-i18n="btnBackToMap">HARİTAYA DÖN</span>
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <!-- MODAL 1: YENİ HARİTA / SORU YÜKLEME -->
+  <dialog id="importDialog" closedby="any" aria-labelledby="importDialogTitle" class="w-full max-w-xl rounded-3xl bg-[#1b2b32] text-slate-100 p-0 border-2 border-[#334e5a] shadow-2xl">
+    <div class="p-6 space-y-5">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 id="importDialogTitle" data-i18n="importModalTitle" class="text-xl font-black text-white">Yeni Harita Oluştur (Soru At)</h2>
+          <p data-i18n="importModalSub" class="text-xs font-bold text-slate-400">Türkçe, Arapça veya İngilizce soru seti yükleyebilirsin.</p>
+        </div>
+        <button type="button" onclick="app.closeDialog('importDialog')" class="text-slate-400 hover:text-white font-black text-xl">✕</button>
+      </div>
+
+      <input id="importQuizTitle" type="text" placeholder="Harita / Ders Adı (Örn: Tarih Vize, Fizik Test 2)" class="w-full px-4 py-3 rounded-2xl bg-[#131f24] border-2 border-[#2c424d] text-sm font-bold text-white focus:outline-none focus:border-[#1cb0f6]" />
+
+      <!-- Sekmeler -->
+      <div class="grid grid-cols-3 gap-2">
+        <button type="button" id="tabBtnText" onclick="app.switchImportTab('text')" class="btn-3d btn-blue py-2 rounded-xl font-extrabold text-xs uppercase">
+          <span data-i18n="tabPasteText">Metin Yapıştır</span>
+        </button>
+        <button type="button" id="tabBtnFile" onclick="app.switchImportTab('file')" class="btn-3d btn-neutral py-2 rounded-xl font-extrabold text-xs uppercase">
+          <span data-i18n="tabUploadFile">PDF / Word / Resim</span>
+        </button>
+        <button type="button" id="tabBtnJson" onclick="app.switchImportTab('json')" class="btn-3d btn-neutral py-2 rounded-xl font-extrabold text-xs uppercase">
+          <span data-i18n="tabJsonBackup">JSON Yedek</span>
+        </button>
+      </div>
+
+      <!-- Sekme 1: Metin -->
+      <div id="importTabText" class="space-y-2">
+        <textarea id="rawQuestionInput" rows="7" placeholder="Soruları buraya olduğu gibi yapıştır (TR, AR veya EN)...&#10;&#10;1. Soru metni?&#10;A) Şık 1&#10;B) Şık 2&#10;C) Şık 3&#10;D) Şık 4" class="w-full p-4 rounded-2xl bg-[#131f24] border-2 border-[#2c424d] text-sm font-bold text-slate-100 focus:outline-none focus:border-[#1cb0f6]"></textarea>
+      </div>
+
+      <!-- Sekme 2: Dosya -->
+      <div id="importTabFile" class="hidden space-y-3">
+        <label for="fileUploadInput" class="flex flex-col items-center justify-center border-2 border-dashed border-[#334e5a] hover:border-[#1cb0f6] rounded-2xl p-8 cursor-pointer bg-[#131f24] text-center">
+          <span class="text-3xl mb-2">📂</span>
+          <span data-i18n="lblSelectFile" class="font-black text-sm text-white">PDF, Word (.docx), TXT veya Resim Seç</span>
+          <input id="fileUploadInput" type="file" accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg,.webp" class="hidden" onchange="app.onFileSelected(event)" />
+        </label>
+        <div id="selectedFileBadge" class="hidden px-4 py-2.5 rounded-xl bg-[#131f24] border-2 border-[#1cb0f6] flex items-center justify-between text-xs font-bold">
+          <span id="selectedFileName" class="truncate"></span>
+          <button type="button" onclick="app.clearSelectedFile()" data-i18n="btnRemoveFile" class="text-[#ff4b4b] font-black ms-3">Kaldır</button>
+        </div>
+      </div>
+
+      <!-- Sekme 3: JSON -->
+      <div id="importTabJson" class="hidden space-y-3">
+        <input id="jsonFileUpload" type="file" accept=".json" onchange="app.importJsonFile(event)" class="block w-full text-xs font-bold text-slate-300 file:mr-4 file:py-2.5 file:px-4 file:rounded-xl file:border-0 file:font-black file:bg-[#1cb0f6] file:text-white cursor-pointer" />
+      </div>
+
+      <div id="importStatusBox" class="hidden rounded-xl p-3 text-xs font-bold"></div>
+
+      <div class="flex items-center justify-between pt-2 gap-3">
+        <label class="flex items-center gap-2 text-xs font-bold text-slate-400 cursor-pointer">
+          <input id="appendModeCheckbox" type="checkbox" class="w-4 h-4 rounded" />
+          <span data-i18n="lblAppendMode">Yeni harita açma, şu anki haritaya ekle</span>
+        </label>
+
+        <button type="button" id="parseSubmitBtn" onclick="app.submitParse()" class="btn-3d btn-green px-6 py-3 rounded-2xl font-black text-xs sm:text-sm uppercase tracking-wider shrink-0">
+          <span data-i18n="btnCreateMapSubmit">YENİ HARİTAYI KUR</span>
+        </button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- YAN ÇEKMECE (SIDE DRAWER): AYARLAR & HARİTALARIM -->
+  <dialog id="settingsDialog" closedby="any" aria-labelledby="settingsDialogTitle" class="side-drawer bg-[#1b2b32] text-slate-100 p-0 border-2 border-[#334e5a] shadow-2xl">
+    <div class="h-full flex flex-col justify-between overflow-y-auto p-6 space-y-6">
+      <div class="space-y-5">
+        <!-- Üst Başlık -->
+        <div class="flex items-center justify-between border-b-2 border-[#23363f] pb-4">
+          <h2 id="settingsDialogTitle" data-i18n="settingsTitle" class="text-xl font-black text-white">⚙️ Ayarlar & Haritalarım</h2>
+          <button type="button" onclick="app.closeDialog('settingsDialog')" class="w-9 h-9 rounded-xl bg-[#131f24] border-2 border-[#2c424d] text-slate-300 hover:text-white font-black text-lg flex items-center justify-center">✕</button>
+        </div>
+
+        <!-- 1. DİL SEÇENEĞİ (TR / AR / EN) -->
+        <div class="bg-[#131f24] p-4 rounded-2xl border-2 border-[#2c424d] space-y-3">
+          <div class="text-xs font-black uppercase tracking-wider text-[#1cb0f6] flex items-center gap-1.5">
+            <span>🌐</span>
+            <span data-i18n="lblLanguageSection">Dil / Language / اللغة</span>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <button type="button" id="langBtn_tr" onclick="app.setLanguage('tr')" class="btn-3d btn-green py-2.5 px-2 rounded-xl font-black text-xs flex flex-col items-center gap-0.5">
+              <span>🇹🇷</span>
+              <span>Türkçe</span>
+            </button>
+            <button type="button" id="langBtn_ar" onclick="app.setLanguage('ar')" class="btn-3d btn-neutral py-2.5 px-2 rounded-xl font-black text-xs flex flex-col items-center gap-0.5">
+              <span>🇸🇦</span>
+              <span>العربية</span>
+            </button>
+            <button type="button" id="langBtn_en" onclick="app.setLanguage('en')" class="btn-3d btn-neutral py-2.5 px-2 rounded-xl font-black text-xs flex flex-col items-center gap-0.5">
+              <span>🇬🇧</span>
+              <span>English</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. HARİTALARIM (Seçenek ve Altında Yapılan Haritalar) -->
+        <div class="bg-[#131f24] p-4 rounded-2xl border-2 border-[#2c424d] space-y-3">
+          <button type="button" onclick="app.toggleMapsListInSettings()" class="w-full flex items-center justify-between text-start">
+            <span class="text-xs font-black uppercase tracking-wider text-[#1cb0f6] flex items-center gap-1.5">
+              <span>🗺️</span>
+              <span data-i18n="lblMyMaps">Haritalarım</span>
+              <span id="mapsCountLabel" class="px-2 py-0.5 rounded-lg bg-[#1b2b32] text-white text-[11px]" dir="ltr">1</span>
+            </span>
+            <span id="mapsAccordionArrow" data-i18n="lblShowHide" class="text-xs font-black text-slate-400">▼ Aç / Gizle</span>
+          </button>
+
+          <div id="mapSwitcherBar" class="space-y-2 max-h-60 overflow-y-auto pe-1 pt-2 border-t border-[#23363f]">
+            <!-- JS ile yapılan tüm haritalar alt alta burada listelenir -->
+          </div>
+        </div>
+
+        <!-- 3. OYUN KURALLARI -->
+        <div class="space-y-3 bg-[#131f24] p-4 rounded-2xl border-2 border-[#2c424d]">
+          <div class="flex items-center justify-between gap-2">
+            <span data-i18n="lblQuestionsPerStage" class="text-xs font-extrabold uppercase text-slate-300">Bölüm Başı Soru</span>
+            <select id="stageSizeSelect" onchange="app.updateSettings()" class="bg-[#1b2b32] border-2 border-[#334e5a] rounded-xl px-3 py-1.5 text-xs font-extrabold text-white">
+              <option value="auto" data-i18n="optStageAuto">Otomatik (~8-10)</option>
+              <option value="5" data-i18n="optStage5">5 Soru</option>
+              <option value="10" data-i18n="optStage10">10 Soru</option>
+              <option value="15" data-i18n="optStage15">15 Soru</option>
+              <option value="all" data-i18n="optStageAll">Tek Bölüm (Hepsi)</option>
+            </select>
+          </div>
+
+          <div class="flex items-center justify-between gap-2">
+            <span data-i18n="lblStartingLives" class="text-xs font-extrabold uppercase text-slate-300">Başlangıç Canı</span>
+            <select id="maxLivesSelect" onchange="app.updateSettings()" class="bg-[#1b2b32] border-2 border-[#334e5a] rounded-xl px-3 py-1.5 text-xs font-extrabold text-white" dir="ltr">
+              <option value="3">❤️❤️❤️ (3)</option>
+              <option value="5">❤️❤️❤️❤️❤️ (5)</option>
+              <option value="1">❤️ (1)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Alt: Veri Araçları -->
+      <div class="grid grid-cols-2 gap-2 pt-4 border-t-2 border-[#23363f]">
+        <button onclick="app.exportJson()" class="btn-3d btn-neutral py-2.5 px-2 rounded-xl text-xs font-extrabold">
+          <span>💾</span> <span data-i18n="btnDownloadAll">Yedek İndir</span>
+        </button>
+        <button onclick="app.loadDemoQuiz()" class="btn-3d btn-neutral py-2.5 px-2 rounded-xl text-xs font-extrabold">
+          <span>➕</span> <span data-i18n="btnAddSampleMap">Örnek Harita</span>
+        </button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- MODAL 3: SORU LİSTESİ & CEVAP DÜZENLEME -->
+  <dialog id="previewDialog" closedby="any" aria-labelledby="previewDialogTitle" class="w-full max-w-2xl rounded-3xl bg-[#1b2b32] text-slate-100 p-0 border-2 border-[#334e5a] shadow-2xl">
+    <div class="p-6 space-y-4 max-h-[82vh] flex flex-col">
+      <div class="flex items-center justify-between shrink-0">
+        <div>
+          <h2 id="previewDialogTitle" data-i18n="previewModalTitle" class="text-lg font-black text-white">Harita Soru Havuzu</h2>
+          <p data-i18n="previewModalSub" class="text-xs font-bold text-slate-400">Doğru cevabı değiştirmek için şıkkın üstüne tıkla.</p>
+        </div>
+        <button type="button" onclick="app.closeDialog('previewDialog')" class="text-slate-400 hover:text-white font-black text-xl">✕</button>
+      </div>
+
+      <div id="previewListContainer" class="overflow-y-auto space-y-3 pe-1 flex-1"></div>
+
+      <div class="flex justify-between items-center pt-2 shrink-0">
+        <button type="button" onclick="app.resetProgressOnly()" data-i18n="btnResetProgressOnly" class="text-xs font-extrabold text-[#ff4b4b] hover:underline">
+          Bu Haritanın İlerlemesini Sıfırla
+        </button>
+        <button type="button" onclick="app.closeDialog('previewDialog')" class="btn-3d btn-blue px-6 py-2 rounded-xl text-xs font-black uppercase">
+          <span data-i18n="btnClose">Kapat</span>
+        </button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="/app.js"></script>
+</body>
+</html>

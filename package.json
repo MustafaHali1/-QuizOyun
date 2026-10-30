@@ -1,0 +1,19 @@
+{
+  "name": "quiz-hunter",
+  "version": "1.0.0",
+  "description": "Oyunlastirilmis YZ Destekli Quiz ve Soru Cozme Uygulamasi",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@google/genai": "^2.29.1",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "mammoth": "^1.9.0",
+    "multer": "^1.4.5-lts.1",
+    "unpdf": "^2.1.0"
+  }
+}

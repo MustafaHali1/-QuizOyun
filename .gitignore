@@ -1,0 +1,15 @@
+# Bağımlılıklar
+node_modules/
+
+# Gizli API Anahtarı Dosyaları (Kesinlikle Git'e Girmemeli)
+apikey.txt
+.env
+.env.local
+.env.*.local
+config.secret.json
+
+# Geçici Yüklemeler ve Loglar
+uploads/
+*.log
+.DS_Store
+Thumbs.db

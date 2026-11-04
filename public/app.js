@@ -91,7 +91,10 @@ const I18N = {
     resultGameOverSub: 'Yanlışlar bu haritanın Hata Havuzuna eklendi. Tekrar dene!',
     errEmptyImport: 'Lütfen soru metnini yapıştır veya bir dosya seç.',
     statusPreparing: (sec) => `HAZIRLANIYOR (${sec} sn)...`,
-    statusSolving: '⚡ Sorular paralel olarak ayıklanıyor ve çözülüyor, lütfen bekle...',
+    statusSolving: '⚡ Sorular hızlı modda ayıklanıyor ve çözülüyor, lütfen bekle...',
+    btnCancelParse: '✕ İPTAL',
+    msgCancelled: '🛑 İşlem iptal edildi.',
+    msgTimeout: '⏱️ İşlem zaman aşımına uğradı (60 sn). Lütfen tekrar dene.',
     defaultMapName: (n) => `Harita #${n}`
   },
   ar: {
@@ -171,7 +174,10 @@ const I18N = {
     resultGameOverSub: 'تمت إضافة الأسئلة الخاطئة إلى صندوق الأخطاء. حاول مرة أخرى!',
     errEmptyImport: 'يرجى لصق نص الأسئلة أو اختيار ملف.',
     statusPreparing: (sec) => `جارٍ التحضير (${sec} ث)...`,
-    statusSolving: '⚡ يتم استخراج الأسئلة وحلها بالتوازي، يرجى الانتظار...',
+    statusSolving: '⚡ يتم استخراج الأسئلة وحلها بسرعة، يرجى الانتظار...',
+    btnCancelParse: '✕ إلغاء',
+    msgCancelled: '🛑 تم إلغاء العملية.',
+    msgTimeout: '⏱️ انتهت مهلة العملية (60 ثانية). يرجى المحاولة مرة أخرى.',
     defaultMapName: (n) => `خريطة #${n}`
   },
   en: {
@@ -251,7 +257,10 @@ const I18N = {
     resultGameOverSub: 'Wrong answers were added to this map\'s Mistake Pool. Try again!',
     errEmptyImport: 'Please paste question text or select a file.',
     statusPreparing: (sec) => `PREPARING (${sec}s)...`,
-    statusSolving: '⚡ Extracting and solving questions in parallel, please wait...',
+    statusSolving: '⚡ Extracting and solving questions in fast mode, please wait...',
+    btnCancelParse: '✕ CANCEL',
+    msgCancelled: '🛑 Operation cancelled.',
+    msgTimeout: '⏱️ Request timed out (60s). Please try again.',
     defaultMapName: (n) => `Map #${n}`
   }
 };
@@ -530,6 +539,9 @@ class QuizHunterApp {
   }
 
   closeDialog(dialogId) {
+    if (dialogId === 'importDialog' && this.parseAbortController) {
+      this.cancelParse();
+    }
     const dlg = document.getElementById(dialogId);
     if (dlg) this.closeTopLayer(dlg);
   }
@@ -595,7 +607,7 @@ class QuizHunterApp {
 
       const key = e.key.toUpperCase();
       if (!this.currentGame.answered) {
-        const keyMap = { '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, A: 0, B: 1, C: 2, D: 3, E: 4 };
+        const keyMap = { '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5, A: 0, B: 1, C: 2, D: 3, E: 4, F: 5 };
         if (key in keyMap) {
           const idx = keyMap[key];
           const q = this.currentGame.questions[this.currentGame.currentIndex];
@@ -1021,6 +1033,20 @@ class QuizHunterApp {
       qCard.dir = questionIsArabic ? 'rtl' : 'ltr';
     }
 
+    // Şekilli Soru Görüntüsü (PDF'ten veya Resimden Otomatik Kırpılan Şekil)
+    const figContainer = document.getElementById('questionFigureContainer');
+    const figImg = document.getElementById('questionFigureImg');
+    if (figContainer && figImg) {
+      if (q.figureImage) {
+        figImg.src = q.figureImage;
+        figImg.className = 'max-h-56 w-auto object-contain rounded-lg cursor-zoom-in transition-all duration-200';
+        figContainer.classList.remove('hidden');
+      } else {
+        figImg.src = '';
+        figContainer.classList.add('hidden');
+      }
+    }
+
     const qEl = document.getElementById('questionText');
     qEl.textContent = qText;
     qEl.className = `text-xl sm:text-2xl font-extrabold text-white leading-snug ${
@@ -1031,8 +1057,9 @@ class QuizHunterApp {
     optsWrap.innerHTML = '';
 
     q.options.forEach((optText, idx) => {
-      const cleanText = normalizeDigits(optText).replace(/^(?:\(?([A-Ea-e]|هـ|[أابجدهتث])[\.\)\-\:،])\s*/, '');
+      const cleanText = normalizeDigits(optText).replace(/^(?:\(?([A-Fa-f]|هـ|[أابجدهوتث])[\.\)\-\:،])\s*/, '');
       const letter = String.fromCharCode(65 + idx);
+      const optHasArabic = isArabicText(cleanText);
 
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -1046,12 +1073,22 @@ class QuizHunterApp {
         <span class="w-8 h-8 rounded-xl border-2 border-[#334e5a] flex items-center justify-center text-xs font-black text-slate-300 shrink-0" dir="ltr">
           ${letter}
         </span>
-        <span class="leading-snug flex-1">${this.escapeHtml(cleanText)}</span>
+        <span class="leading-snug flex-1" dir="${optHasArabic ? 'rtl' : 'ltr'}">${this.escapeHtml(cleanText)}</span>
       `;
 
       btn.onclick = () => this.selectAnswer(idx);
       optsWrap.appendChild(btn);
     });
+  }
+
+  toggleZoomFigure(imgEl) {
+    if (!imgEl) return;
+    const isZoomed = imgEl.classList.contains('max-h-[65vh]');
+    if (isZoomed) {
+      imgEl.className = 'max-h-56 w-auto object-contain rounded-lg cursor-zoom-in transition-all duration-200';
+    } else {
+      imgEl.className = 'max-h-[65vh] w-auto object-contain rounded-lg cursor-zoom-out transition-all duration-200';
+    }
   }
 
   renderLives() {
@@ -1404,9 +1441,108 @@ class QuizHunterApp {
     document.getElementById('selectedFileBadge').classList.add('hidden');
   }
 
+  async cropFiguresFromFile(file, questions) {
+    try {
+      const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+      const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(file.name);
+
+      const cropFromCanvas = (sourceCanvas, box) => {
+        let [ymin, xmin, ymax, xmax] = box.map((v) => Number(v) || 0);
+        if (ymax <= ymin || xmax <= xmin) return null;
+
+        // Harflerin ve ok uçlarının kesilmemesi için %3.5 güvenlik payı (padding) bırak
+        const padY = 35;
+        const padX = 35;
+        ymin = Math.max(0, ymin - padY);
+        xmin = Math.max(0, xmin - padX);
+        ymax = Math.min(1000, ymax + padY);
+        xmax = Math.min(1000, xmax + padX);
+
+        const sx = Math.floor((xmin / 1000) * sourceCanvas.width);
+        const sy = Math.floor((ymin / 1000) * sourceCanvas.height);
+        const sw = Math.max(40, Math.ceil(((xmax - xmin) / 1000) * sourceCanvas.width));
+        const sh = Math.max(40, Math.ceil(((ymax - ymin) / 1000) * sourceCanvas.height));
+
+        const outCanvas = document.createElement('canvas');
+        outCanvas.width = sw;
+        outCanvas.height = sh;
+        const ctx = outCanvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, sw, sh);
+        ctx.drawImage(sourceCanvas, sx, sy, sw, sh, 0, 0, sw, sh);
+        return outCanvas.toDataURL('image/png');
+      };
+
+      if (isPdf && window.pdfjsLib) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        const arrayBuf = await file.arrayBuffer();
+        const pdfDoc = await window.pdfjsLib.getDocument({ data: arrayBuf }).promise;
+        const pageCanvasCache = new Map();
+
+        for (const q of questions) {
+          if (!q.hasFigure || !Array.isArray(q.figureBox) || q.figureBox.length !== 4) continue;
+          const pageNum = Math.min(pdfDoc.numPages, Math.max(1, q.figurePage || 1));
+
+          if (!pageCanvasCache.has(pageNum)) {
+            const page = await pdfDoc.getPage(pageNum);
+            const viewport = page.getViewport({ scale: 2.2 });
+            const canvas = document.createElement('canvas');
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            await page.render({ canvasContext: ctx, viewport }).promise;
+            pageCanvasCache.set(pageNum, canvas);
+          }
+
+          const pageCanvas = pageCanvasCache.get(pageNum);
+          const dataUrl = cropFromCanvas(pageCanvas, q.figureBox);
+          if (dataUrl) {
+            q.figureImage = dataUrl;
+          }
+        }
+      } else if (isImage) {
+        const imgUrl = URL.createObjectURL(file);
+        const img = new Image();
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = imgUrl;
+        });
+        const srcCanvas = document.createElement('canvas');
+        srcCanvas.width = img.naturalWidth;
+        srcCanvas.height = img.naturalHeight;
+        const ctx = srcCanvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        URL.revokeObjectURL(imgUrl);
+
+        for (const q of questions) {
+          if (!q.hasFigure || !Array.isArray(q.figureBox) || q.figureBox.length !== 4) continue;
+          const dataUrl = cropFromCanvas(srcCanvas, q.figureBox);
+          if (dataUrl) {
+            q.figureImage = dataUrl;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Şekil kırpma uyarısı:', err);
+    }
+  }
+
+  cancelParse() {
+    if (this.parseAbortController) {
+      this.parseAbortController.abort('user_cancelled');
+      this.parseAbortController = null;
+    }
+  }
+
   async submitParse() {
     const statusBox = document.getElementById('importStatusBox');
     const submitBtn = document.getElementById('parseSubmitBtn');
+    const cancelBtn = document.getElementById('cancelParseBtn');
     const customTitle = normalizeDigits(document.getElementById('importQuizTitle').value.trim());
     const appendMode = document.getElementById('appendModeCheckbox').checked;
     const rawText = normalizeDigits(document.getElementById('rawQuestionInput').value.trim());
@@ -1420,7 +1556,21 @@ class QuizHunterApp {
       return;
     }
 
+    if (this.parseAbortController) {
+      this.parseAbortController.abort();
+    }
+    this.parseAbortController = new AbortController();
+    const { signal } = this.parseAbortController;
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      if (this.parseAbortController) {
+        this.parseAbortController.abort('timeout');
+      }
+    }, 60000);
+
     submitBtn.disabled = true;
+    if (cancelBtn) cancelBtn.classList.remove('hidden');
     let sec = 0;
     submitBtn.querySelector('span').textContent = normalizeDigits(this.t.statusPreparing(0));
 
@@ -1441,7 +1591,8 @@ class QuizHunterApp {
 
       const response = await fetch('/api/parse', {
         method: 'POST',
-        body: formData
+        body: formData,
+        signal
       });
 
       const data = await response.json();
@@ -1459,6 +1610,12 @@ class QuizHunterApp {
 
       if (incomingQuestions.length === 0) {
         throw new Error('No multiple-choice questions found.');
+      }
+
+      // Eğer yüklenen PDF veya Resim içinde şekilli sorular (hasFigure + figureBox) varsa
+      // o şekli sayfadan otomatik kırpıp sorunun içine (q.figureImage) kaydet!
+      if (fileToSend && incomingQuestions.some((q) => q.hasFigure && Array.isArray(q.figureBox))) {
+        await this.cropFiguresFromFile(fileToSend, incomingQuestions);
       }
 
       if (appendMode && this.activeMap) {
@@ -1494,13 +1651,21 @@ class QuizHunterApp {
       document.getElementById('rawQuestionInput').value = '';
       document.getElementById('importQuizTitle').value = '';
       this.clearSelectedFile();
+      this.parseAbortController = null;
       this.closeDialog('importDialog');
     } catch (err) {
       statusBox.className = 'rounded-xl p-3 text-xs font-bold bg-[#2e1619] border-2 border-[#ff4b4b] text-[#ff4b4b]';
-      statusBox.textContent = normalizeDigits(err.message);
+      if (err.name === 'AbortError' || signal.aborted) {
+        statusBox.textContent = timedOut ? this.t.msgTimeout : this.t.msgCancelled;
+      } else {
+        statusBox.textContent = normalizeDigits(err.message);
+      }
     } finally {
+      clearTimeout(timeoutId);
       clearInterval(timer);
+      this.parseAbortController = null;
       submitBtn.disabled = false;
+      if (cancelBtn) cancelBtn.classList.add('hidden');
       submitBtn.querySelector('span').textContent = appendMode
         ? this.t.btnAppendMapSubmit
         : this.t.btnCreateMapSubmit;
@@ -1533,11 +1698,16 @@ class QuizHunterApp {
         })
         .join('');
 
+      const figPreviewHtml = q.figureImage
+        ? `<div class="bg-white rounded-xl p-2 flex justify-center border border-[#334e5a]"><img src="${q.figureImage}" alt="Şekil" class="max-h-40 w-auto object-contain rounded" /></div>`
+        : '';
+
       item.innerHTML = `
         <div class="flex items-start justify-between gap-2">
           <div class="font-extrabold text-sm text-white">${q.id}. ${this.escapeHtml(normalizeDigits(q.question))}</div>
           <button onclick="app.deleteQuestion(${qIdx})" class="text-slate-500 hover:text-[#ff4b4b] text-xs font-bold shrink-0">${this.t.btnDelete}</button>
         </div>
+        ${figPreviewHtml}
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">${optsHtml}</div>
       `;
 

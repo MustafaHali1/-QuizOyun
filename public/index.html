@@ -6,6 +6,7 @@
   <title>QuizOyun</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800;900&family=Nunito:wght@600;700;800;900&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -344,7 +345,11 @@
       </div>
 
       <!-- ORTA: SORU VE ŞIKLAR -->
-      <div id="questionCard" class="my-auto py-6 space-y-6">
+      <div id="questionCard" class="my-auto py-6 space-y-5">
+        <div id="questionFigureContainer" class="hidden bg-white rounded-2xl p-3 border-2 border-[#334e5a] flex flex-col items-center justify-center shadow-lg">
+          <img id="questionFigureImg" src="" alt="Soru Şekli" class="max-h-56 w-auto object-contain rounded-lg cursor-zoom-in transition-all duration-200" onclick="app.toggleZoomFigure(this)" />
+        </div>
+
         <h2 id="questionText" class="text-xl sm:text-2xl font-extrabold text-white leading-snug">
           Soru metni...
         </h2>
@@ -464,9 +469,14 @@
           <span data-i18n="lblAppendMode">Yeni harita açma, şu anki haritaya ekle</span>
         </label>
 
-        <button type="button" id="parseSubmitBtn" onclick="app.submitParse()" class="btn-3d btn-green px-6 py-3 rounded-2xl font-black text-xs sm:text-sm uppercase tracking-wider shrink-0">
-          <span data-i18n="btnCreateMapSubmit">YENİ HARİTAYI KUR</span>
-        </button>
+        <div class="flex items-center gap-2 shrink-0">
+          <button type="button" id="cancelParseBtn" onclick="app.cancelParse()" class="hidden btn-3d btn-red px-4 py-3 rounded-2xl font-black text-xs sm:text-sm uppercase tracking-wider">
+            <span data-i18n="btnCancelParse">✕ İPTAL</span>
+          </button>
+          <button type="button" id="parseSubmitBtn" onclick="app.submitParse()" class="btn-3d btn-green px-6 py-3 rounded-2xl font-black text-xs sm:text-sm uppercase tracking-wider">
+            <span data-i18n="btnCreateMapSubmit">YENİ HARİTAYI KUR</span>
+          </button>
+        </div>
       </div>
     </div>
   </dialog>
